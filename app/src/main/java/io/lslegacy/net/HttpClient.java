@@ -13,10 +13,10 @@ import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URLEncoder;
-import java.security.SecureRandom;
 import java.util.Map;
 
 import io.lslegacy.Identity;
+import io.lslegacy.Rand;
 
 /**
  * HTTP/1.1 client over plain sockets, with HTTPS via BouncyCastle's pure-Java TLS.
@@ -70,7 +70,7 @@ public final class HttpClient {
     }
 
     private static synchronized BcTlsCrypto crypto() {
-        if (crypto == null) crypto = new BcTlsCrypto(new SecureRandom());
+        if (crypto == null) crypto = new BcTlsCrypto(Rand.get());
         return crypto;
     }
 

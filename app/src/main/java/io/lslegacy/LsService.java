@@ -68,7 +68,7 @@ public class LsService extends Service {
 
     private final BroadcastReceiver netReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
-            if (discovery != null && Util.wifiIp(LsService.this) != null) {
+            if (discovery != null && Util.localIp(LsService.this) != null) {
                 discovery.rejoin();
                 discovery.announce();
             }

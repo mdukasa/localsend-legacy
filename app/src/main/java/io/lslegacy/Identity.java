@@ -73,7 +73,7 @@ public final class Identity {
     }
 
     private static Identity generate() throws IOException {
-        SecureRandom rnd = new SecureRandom();
+        SecureRandom rnd = Rand.get();
         ECNamedDomainParameters dom = domain();
         ECKeyPairGenerator gen = new ECKeyPairGenerator();
         gen.init(new ECKeyGenerationParameters(dom, rnd));

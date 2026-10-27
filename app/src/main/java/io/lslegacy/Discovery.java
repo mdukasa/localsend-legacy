@@ -51,10 +51,10 @@ final class Discovery {
         t.start();
     }
 
-    /** Joins on the Wi-Fi interface explicitly; some old ROMs otherwise pick rmnet or nothing. */
+    /** Joins on the local-network interface explicitly; some old ROMs otherwise pick rmnet or nothing. */
     private void joinGroup() throws IOException {
         NetworkInterface nif = null;
-        String ip = Util.wifiIp(service);
+        String ip = Util.localIp(service);
         if (ip != null) {
             try {
                 nif = NetworkInterface.getByInetAddress(InetAddress.getByName(ip));
@@ -160,7 +160,7 @@ final class Discovery {
 
     /** POSTs /register to every address in our /24, HTTPS first since that is LocalSend's default. */
     void scanSubnet(final Runnable done) {
-        final String self = Util.wifiIp(service);
+        final String self = Util.localIp(service);
         if (self == null) {
             if (done != null) done.run();
             return;

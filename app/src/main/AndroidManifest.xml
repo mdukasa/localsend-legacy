@@ -40,6 +40,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".FileBrowserActivity"
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|screenSize" />
+
         <service android:name=".LsService" android:exported="false" />
     </application>
 </manifest>

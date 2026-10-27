@@ -29,6 +29,7 @@ import java.util.List;
 
 public class MainActivity extends Activity implements LsService.Listener {
     private static final int REQ_PICK = 1;
+    private static final int REQ_BROWSE = 2;
 
     private final List<Device> devices = new ArrayList<Device>();
     /** Files handed to us by a share intent, waiting for the user to tap a device. */
@@ -149,12 +150,12 @@ public class MainActivity extends Activity implements LsService.Listener {
     @Override public void onStateChanged() {
         LsService s = LsService.get();
         if (s == null) return;
-        String ip = Util.wifiIp(this);
-        status.setText(s.alias() + " · " + (ip != null ? ip : "no Wi-Fi") + " · " + s.status());
+        String ip = Util.localIp(this);
+        status.setText(s.alias() + " · " + (ip != null ? ip : "no network") + " · " + s.status());
         devices.clear();
         devices.addAll(s.devices());
         adapter.notifyDataSetChanged();
-        empty.setText(ip == null ? "Connect to Wi-Fi to find devices." : "Looking for devices…\nOpen LocalSend on the other device, or press Scan.");
+        empty.setText(ip == null ? "Connect to Wi-Fi or Ethernet to find devices." : "Looking for devices…\nOpen LocalSend on the other device, or press Scan.");
         updateShared();
     }
 
@@ -222,32 +223,43 @@ public class MainActivity extends Activity implements LsService.Listener {
             send(d, new ArrayList<Uri>(shared));
             return;
         }
+        // Many Android 2.x phones have no app that can pick arbitrary files; only offer one if it exists.
+        final boolean hasPicker = !getPackageManager().queryIntentActivities(pickIntent(), 0).isEmpty();
+        CharSequence[] items = hasPicker
+                ? new CharSequence[]{"Send files from storage", "Send files using another app", "Send text"}
+                : new CharSequence[]{"Send files from storage", "Send text"};
         new AlertDialog.Builder(this)
                 .setTitle(d.alias)
-                .setItems(new CharSequence[]{"Send file(s)", "Send text"}, new DialogInterface.OnClickListener() {
+                .setItems(items, new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface dialog, int which) {
-                        if (which == 0) pickFiles(d);
-                        else askText(d);
+                        pickTarget = d;
+                        if (which == 0) {
+                            startActivityForResult(new Intent(MainActivity.this, FileBrowserActivity.class), REQ_BROWSE);
+                        } else if (hasPicker && which == 1) {
+                            startActivityForResult(Intent.createChooser(pickIntent(), "Choose file(s)"), REQ_PICK);
+                        } else {
+                            askText(d);
+                        }
                     }
                 })
                 .show();
     }
 
-    private void pickFiles(Device d) {
-        pickTarget = d;
+    private static Intent pickIntent() {
         Intent i = new Intent(Intent.ACTION_GET_CONTENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE);
         i.putExtra("android.intent.extra.ALLOW_MULTIPLE", true);
-        try {
-            startActivityForResult(Intent.createChooser(i, "Choose file(s)"), REQ_PICK);
-        } catch (android.content.ActivityNotFoundException e) {
-            Toast.makeText(this, "No file picker installed. Share files to LocalSend Legacy from another app instead.",
-                    Toast.LENGTH_LONG).show();
-        }
+        return i;
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQ_PICK || resultCode != RESULT_OK || data == null || pickTarget == null) return;
+        if (resultCode != RESULT_OK || data == null || pickTarget == null) return;
+        if (requestCode == REQ_BROWSE) {
+            ArrayList<Uri> uris = data.getParcelableArrayListExtra(FileBrowserActivity.EXTRA_URIS);
+            if (uris != null && !uris.isEmpty()) send(pickTarget, uris);
+            return;
+        }
+        if (requestCode != REQ_PICK) return;
         ArrayList<Uri> uris = new ArrayList<Uri>();
         if (Build.VERSION.SDK_INT >= 16) collectClip(data, uris);
         if (uris.isEmpty() && data.getData() != null) uris.add(data.getData());

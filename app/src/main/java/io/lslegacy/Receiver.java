@@ -14,11 +14,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import io.lslegacy.net.MiniHttpServer;
 
@@ -180,6 +181,12 @@ final class Receiver implements MiniHttpServer.Handler {
             total += e.size;
             list.add(e);
         }
+        // The files map arrives in hash order; show it alphabetically instead.
+        Collections.sort(list, new Comparator<FileEntry>() {
+            @Override public int compare(FileEntry a, FileEntry b) {
+                return a.fileName.compareToIgnoreCase(b.fileName);
+            }
+        });
 
         // A text message arrives as a file whose preview is the message; show it, nothing to transfer.
         if (allText) {
@@ -217,7 +224,7 @@ final class Receiver implements MiniHttpServer.Handler {
         }
 
         Session s = new Session();
-        s.id = UUID.randomUUID().toString();
+        s.id = Rand.id();
         s.senderIp = req.remoteIp;
         s.sender = sender;
         s.totalBytes = total;
@@ -225,7 +232,7 @@ final class Receiver implements MiniHttpServer.Handler {
         s.accepted = true;
         JSONObject tokens = new JSONObject();
         for (FileEntry e : list) {
-            e.token = UUID.randomUUID().toString();
+            e.token = Rand.id();
             s.files.put(e.id, e);
             tokens.put(e.id, e.token);
         }
