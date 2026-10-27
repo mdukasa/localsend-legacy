@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/mdukasa/localsend-legacy/releases/latest">Download the APK</a> ·
-  Android 2.3 – 4.4 · any CPU
+  Android 2.3 – 4.4
 </p>
 
 A LocalSend-compatible file sharing app for old Android phones and tablets that the official app can't
