@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-180 -172 360 360" width="512" height="512">
+  <!-- Source for the launcher PNGs in app/src/main/res/drawable-*dpi. Re-export with: python art/export_icons.py -->
+  <defs>
+    <radialGradient id="sh" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#000" stop-opacity="0.45"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+    <linearGradient id="bez" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="0.35" stop-color="#cfd3d6"/><stop offset="0.55" stop-color="#8d9398"/><stop offset="0.8" stop-color="#d9dcdf"/><stop offset="1" stop-color="#f2f3f4"/></linearGradient>
+    <linearGradient id="bezIn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7d8388"/><stop offset="1" stop-color="#f5f6f7"/></linearGradient>
+    <radialGradient id="orb" cx="50%" cy="62%" r="62%"><stop offset="0" stop-color="#8af0b6"/><stop offset="0.45" stop-color="#2bb06f"/><stop offset="0.85" stop-color="#156c43"/><stop offset="1" stop-color="#0a3d25"/></radialGradient>
+    <radialGradient id="glow" cx="50%" cy="100%" r="60%"><stop offset="0" stop-color="#c9ffe0" stop-opacity="0.75"/><stop offset="1" stop-color="#c9ffe0" stop-opacity="0"/></radialGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.92"/><stop offset="1" stop-color="#fff" stop-opacity="0.05"/></linearGradient>
+    <linearGradient id="arw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="0.6" stop-color="#eef5f0"/><stop offset="1" stop-color="#c7d8cd"/></linearGradient>
+    <clipPath id="clip"><circle cx="0" cy="0" r="128"/></clipPath>
+  </defs>
+  <ellipse cx="0" cy="164" rx="140" ry="16" fill="url(#sh)"/>
+  <circle cx="0" cy="4" r="152" fill="#000" opacity="0.18"/>
+  <circle cx="0" cy="0" r="150" fill="url(#bez)"/>
+  <circle cx="0" cy="0" r="138" fill="url(#bezIn)"/>
+  <circle cx="0" cy="0" r="132" fill="#0c2e1e"/>
+  <circle cx="0" cy="0" r="128" fill="url(#orb)"/>
+  <g clip-path="url(#clip)">
+    <ellipse cx="0" cy="118" rx="110" ry="60" fill="url(#glow)"/>
+    <path d="M0,-78 L66,-6 L24,-6 L24,66 L-24,66 L-24,-6 L-66,-6 Z" transform="translate(0,7)" fill="#05301b" opacity="0.45" stroke="#05301b" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M0,-78 L66,-6 L24,-6 L24,66 L-24,66 L-24,-6 L-66,-6 Z" fill="url(#arw)" stroke="url(#arw)" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M0,-78 L66,-6 L24,-6 L24,66 L-24,66 L-24,-6 L-66,-6 Z" fill="none" stroke="#7a9c88" stroke-width="1.5" stroke-linejoin="round" opacity="0.6"/>
+    <path d="M-118,-20 C-110,-95 -55,-122 0,-122 C55,-122 110,-95 118,-20 C80,-38 40,-44 0,-44 C-40,-44 -80,-38 -118,-20 Z" fill="url(#gloss)"/>
+    <ellipse cx="-58" cy="-92" rx="16" ry="8" transform="rotate(-30 -58 -92)" fill="#fff" opacity="0.9"/>
+  </g>
+  <circle cx="0" cy="0" r="128" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="2"/>
+</svg>
