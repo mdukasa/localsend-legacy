@@ -20,7 +20,7 @@ recompile of that codebase. It's a small native Java app that speaks the same
 receive from, current LocalSend apps on Windows, macOS, Linux, Android and iOS. It has no native code,
 so one APK runs on every CPU architecture.
 
-![LocalSend Legacy on Android 2.3, 4.1, an HTC Wildfire S running 4.2, and 4.4](docs/screenshots/versions.png)
+![LocalSend Legacy on Android 2.3, 4.1 and 4.4](docs/screenshots/versions.png)
 
 ## Screenshots
 
