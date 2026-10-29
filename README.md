@@ -37,7 +37,7 @@ On Android 2.3 (Gingerbread):
 | Android | Status |
 |---|---|
 | 2.3 – 2.3.7 (API 9–10) | Supported. Tested on the 2.3.7 x86 emulator: send file, send text, receive |
-| 3.x (API 11–13) | Should work; untested |
+| 3.x (API 11–13) | Supported. Tested on the 3.2 ARM emulator: send file, receive |
 | 4.0 – 4.3 (API 14–18) | Supported. Tested on an HTC Wildfire S (ARMv6, CM 10.1 / 4.2.2) |
 | 4.4 (API 19) | Supported. Tested on the 4.4.2 x86 emulator: send text, receive |
 | 5.0+ (API 21+) | Works, but you probably want the [official app](https://localsend.org). Tested on the 5.0.2 x86 emulator: send file, send text, receive |
