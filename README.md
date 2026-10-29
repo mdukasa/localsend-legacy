@@ -55,6 +55,9 @@ Specific fixes for old Android versions:
 - Receive text messages
 - Send files from the built-in file browser, another app's picker, or any app's **Share** menu, and send text
 - Runs in the background as a foreground service, with progress notifications
+- A spinning glass orb in the header, a nod to modern LocalSend's receive screen. Its original
+  live-drawn version is preserved as a standalone demo in
+  [Glass Orb](https://github.com/mdukasa/glass-orb-demo)
 
 ## How it works on old Android
 
