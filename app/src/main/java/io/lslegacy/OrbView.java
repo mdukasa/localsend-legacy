@@ -20,58 +20,61 @@ import android.view.View;
  * A glass orb inside a slowly turning ring of glass segments: a skeuomorphic nod to the spinning
  * orb on modern LocalSend's receive screen.
  *
- * Everything with gradients or blur is drawn once into bitmaps when the size is known. Each frame only
- * rotates the ring bitmap and relights it, so it stays smooth on a 600 MHz ARMv6 without GPU drawing.
- * The highlight stays fixed at the top-left while the segments turn underneath it.
+ * The ring has 10 identical segments, so its look repeats every 36° of rotation. That cycle is rendered
+ * once, when the size is known, into {@link #FRAMES} complete frames (ring, fixed top-left lighting,
+ * shadow and orb), so animating is a single bitmap draw per frame. Compositing every frame live cost a
+ * Wildfire S (600 MHz ARMv6) over half its CPU.
  */
 public class OrbView extends View {
     private static final int SEGMENTS = 10;
     private static final float SEGMENT_SWEEP = 28f; // degrees of each segment; the rest of 36° is gap
     private static final long TURN_MS = 9000; // one full turn
-    private static final long FRAME_MS = 40; // ~25 fps is plenty for a slow turn
+    /**
+     * Degrees per frame. Even a trivial redraw costs an ARMv6 phone ~10 ms, so those get 10 fps (4°);
+     * at this slow turn that still reads as smooth. Everything else gets 20 fps (2°).
+     */
+    private static final float STEP_DEGREES = isSlowCpu() ? 4f : 2f;
+    private static final int FRAMES = Math.round(360f / SEGMENTS / STEP_DEGREES); // one 36° cycle
+    private static final long FRAME_MS = Math.round(TURN_MS * STEP_DEGREES / 360f);
 
-    private final Paint bitmapPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
-    private final Paint rotatePaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
-    private final Paint atopPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
-    private final Paint shadowPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
-    private Bitmap orb, ring, ringShadow, lighting, frame;
-    private Canvas frameCanvas;
+    private final Paint bitmapPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private Bitmap[] frames;
+    private int frameIndex;
     private boolean active = true;
+    private boolean animated = true;
     private boolean running;
-    private float angle;
-    private long lastTick;
+    private long startTime;
 
     private final Runnable tick = new Runnable() {
         @Override public void run() {
             if (!running) return;
-            long now = SystemClock.uptimeMillis();
-            angle = (angle + 360f * (now - lastTick) / TURN_MS) % 360f;
-            lastTick = now;
-            invalidate();
+            int next = (int) (((SystemClock.uptimeMillis() - startTime) / FRAME_MS) % FRAMES);
+            if (next != frameIndex) {
+                frameIndex = next;
+                invalidate();
+            }
             postDelayed(this, FRAME_MS);
         }
     };
 
     public OrbView(Context context) {
         super(context);
-        init();
     }
 
     public OrbView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        init();
     }
 
-    private void init() {
-        atopPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP));
-        shadowPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OVER));
-        if (android.os.Build.VERSION.SDK_INT >= 11) disableHardware();
+    @SuppressWarnings("deprecation")
+    private static boolean isSlowCpu() {
+        String abi = android.os.Build.CPU_ABI;
+        return abi != null && abi.startsWith("armeabi") && !abi.contains("v7");
     }
 
-    @android.annotation.TargetApi(11)
-    private void disableHardware() {
-        // BlurMaskFilter needs a software layer; the bitmaps are cheap to draw either way.
-        setLayerType(LAYER_TYPE_SOFTWARE, null);
+    /** False for a still orb (e.g. in About): it never spins, so it costs nothing after the first draw. */
+    public void setAnimated(boolean animated) {
+        this.animated = animated;
+        updateRunning();
     }
 
     /** Spinning and full brightness while receiving is possible; still and dimmed otherwise. */
@@ -98,10 +101,11 @@ public class OrbView extends View {
     }
 
     private void updateRunning() {
-        boolean shouldRun = active && getWindowVisibility() == VISIBLE && getWindowToken() != null;
+        boolean shouldRun = active && animated && getWindowVisibility() == VISIBLE && getWindowToken() != null;
         if (shouldRun && !running) {
             running = true;
-            lastTick = SystemClock.uptimeMillis();
+            // Resume from the frame currently shown instead of jumping.
+            startTime = SystemClock.uptimeMillis() - frameIndex * FRAME_MS;
             post(tick);
         } else if (!shouldRun) {
             stop();
@@ -116,38 +120,55 @@ public class OrbView extends View {
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
         int s = Math.min(w, h);
-        if (s <= 0) return;
-        orb = renderOrb(s);
-        ring = renderRing(s, false);
-        ringShadow = renderRing(s, true);
-        lighting = renderLighting(s);
-        frame = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888);
-        frameCanvas = new Canvas(frame);
+        if (s <= 0 || (frames != null && frames[0].getWidth() == s)) return;
+        frames = renderFrames(s);
     }
 
     @Override protected void onDraw(Canvas canvas) {
-        if (orb == null) return;
-        int s = orb.getWidth();
-        float left = (getWidth() - s) / 2f, top = (getHeight() - s) / 2f;
-        float c = s / 2f;
+        if (frames == null) return;
+        Bitmap f = frames[frameIndex];
         bitmapPaint.setAlpha(active ? 255 : 110);
+        canvas.drawBitmap(f, (getWidth() - f.getWidth()) / 2f, (getHeight() - f.getHeight()) / 2f, bitmapPaint);
+    }
 
-        // Turn the ring, then relight it with the fixed highlight, clipped to the segments.
-        frameCanvas.drawColor(0, PorterDuff.Mode.CLEAR);
-        frameCanvas.save();
-        frameCanvas.rotate(angle, c, c);
-        frameCanvas.drawBitmap(ring, 0, 0, rotatePaint);
-        frameCanvas.restore();
-        frameCanvas.drawBitmap(lighting, 0, 0, atopPaint);
-        // The shadow goes underneath the lit ring and always falls straight down.
-        frameCanvas.save();
-        frameCanvas.translate(0, s * 0.025f);
-        frameCanvas.rotate(angle, c, c);
-        frameCanvas.drawBitmap(ringShadow, 0, 0, shadowPaint);
-        frameCanvas.restore();
+    /** Composites every frame of one 36° cycle: rotated ring, fixed lighting, falling shadow, then the orb. */
+    private static Bitmap[] renderFrames(int s) {
+        Bitmap orb = renderOrb(s);
+        Bitmap ring = renderRing(s, false);
+        Bitmap ringShadow = renderRing(s, true);
+        Bitmap lighting = renderLighting(s);
+        Paint rotatePaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+        Paint atopPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+        atopPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP));
+        Paint shadowPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+        shadowPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OVER));
+        float c = s / 2f;
 
-        canvas.drawBitmap(frame, left, top, bitmapPaint);
-        canvas.drawBitmap(orb, left, top, bitmapPaint);
+        Bitmap[] out = new Bitmap[FRAMES];
+        for (int i = 0; i < FRAMES; i++) {
+            float angle = i * STEP_DEGREES;
+            Bitmap frame = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888);
+            Canvas cv = new Canvas(frame);
+            // Turn the ring, then relight it with the fixed highlight, clipped to the segments.
+            cv.save();
+            cv.rotate(angle, c, c);
+            cv.drawBitmap(ring, 0, 0, rotatePaint);
+            cv.restore();
+            cv.drawBitmap(lighting, 0, 0, atopPaint);
+            // The shadow goes underneath the lit ring and always falls straight down.
+            cv.save();
+            cv.translate(0, s * 0.025f);
+            cv.rotate(angle, c, c);
+            cv.drawBitmap(ringShadow, 0, 0, shadowPaint);
+            cv.restore();
+            cv.drawBitmap(orb, 0, 0, null);
+            out[i] = frame;
+        }
+        orb.recycle();
+        ring.recycle();
+        ringShadow.recycle();
+        lighting.recycle();
+        return out;
     }
 
     // ---- one-off rendering ----

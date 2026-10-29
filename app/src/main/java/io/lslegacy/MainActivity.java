@@ -510,7 +510,10 @@ public class MainActivity extends Activity implements LsService.Listener {
         dividerParams.bottomMargin = (int) (16 * dp);
         about.addView(divider, dividerParams);
 
-        about.addView(new OrbView(this), new LinearLayout.LayoutParams((int) (72 * dp), (int) (72 * dp)));
+        // Still, like LocalSend's About logo; two spinning orbs at once would double the redraw cost.
+        OrbView logo = new OrbView(this);
+        logo.setAnimated(false);
+        about.addView(logo, new LinearLayout.LayoutParams((int) (72 * dp), (int) (72 * dp)));
 
         TextView name = new TextView(this);
         name.setText(R.string.app_name);
