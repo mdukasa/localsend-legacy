@@ -6,11 +6,20 @@ import android.app.ProgressDialog;
 import android.content.ClipData;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.text.ClipboardManager;
+import android.text.util.Linkify;
+import android.view.Gravity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -21,6 +30,7 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -35,6 +45,8 @@ public class MainActivity extends Activity implements LsService.Listener {
     /** Files handed to us by a share intent, waiting for the user to tap a device. */
     private final ArrayList<Uri> shared = new ArrayList<Uri>();
     private Device pickTarget;
+    private OrbView orb;
+    private TextView aliasView;
     private TextView status;
     private TextView sharedView;
     private TextView empty;
@@ -47,6 +59,8 @@ public class MainActivity extends Activity implements LsService.Listener {
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        orb = (OrbView) findViewById(R.id.orb);
+        aliasView = (TextView) findViewById(R.id.alias);
         status = (TextView) findViewById(R.id.status);
         sharedView = (TextView) findViewById(R.id.shared);
         empty = (TextView) findViewById(R.id.empty);
@@ -60,21 +74,16 @@ public class MainActivity extends Activity implements LsService.Listener {
                 onDeviceTapped(devices.get(position));
             }
         });
+        // Refresh re-announces over multicast and also scans the subnet, for networks that drop multicast.
         findViewById(R.id.refresh).setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
+            @Override public void onClick(final View v) {
                 LsService s = LsService.get();
-                if (s != null) s.refresh();
-            }
-        });
-        findViewById(R.id.scan).setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                final LsService s = LsService.get();
                 if (s == null || !s.ready()) return;
+                s.refresh();
                 v.setEnabled(false);
-                final View btn = v;
                 s.scan(new Runnable() {
                     @Override public void run() {
-                        btn.setEnabled(true);
+                        v.setEnabled(true);
                     }
                 });
             }
@@ -85,8 +94,40 @@ public class MainActivity extends Activity implements LsService.Listener {
             }
         });
 
+        alignHeaderText();
         startService(new Intent(this, LsService.class));
         handleShareIntent(getIntent());
+    }
+
+    /**
+     * Button backgrounds are drawn inset from the view edge (a shadow margin that differs between
+     * Gingerbread, Holo and custom ROM themes), so indent the name and status by the same amount to
+     * line them up with the visible left edge of the Refresh button.
+     */
+    private void alignHeaderText() {
+        final View button = findViewById(R.id.refresh);
+        button.post(new Runnable() {
+            @Override public void run() {
+                int w = button.getWidth(), h = button.getHeight();
+                Drawable bg = button.getBackground();
+                if (w == 0 || h == 0 || bg == null) return;
+                Drawable d = bg.getConstantState() != null ? bg.getConstantState().newDrawable().mutate() : bg;
+                d.setState(new int[]{android.R.attr.state_enabled});
+                d.setBounds(0, 0, w, h);
+                Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                d.draw(new Canvas(bitmap));
+                int inset = 0;
+                for (int x = 0; x < w / 2; x++) {
+                    if (Color.alpha(bitmap.getPixel(x, h / 2)) > 64) {
+                        inset = x;
+                        break;
+                    }
+                }
+                bitmap.recycle();
+                aliasView.setPadding(inset, 0, 0, 0);
+                status.setPadding(inset, 0, 0, 0);
+            }
+        });
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -151,11 +192,14 @@ public class MainActivity extends Activity implements LsService.Listener {
         LsService s = LsService.get();
         if (s == null) return;
         String ip = Util.localIp(this);
-        status.setText(s.alias() + " · " + (ip != null ? ip : "no network") + " · " + s.status());
+        aliasView.setText(s.alias());
+        status.setText((ip != null ? ip : "No network") + " · " + s.status());
+        // Spins like LocalSend's receive screen while the phone can be found and receive.
+        orb.setActive(ip != null && s.ready());
         devices.clear();
         devices.addAll(s.devices());
         adapter.notifyDataSetChanged();
-        empty.setText(ip == null ? "Connect to Wi-Fi or Ethernet to find devices." : "Looking for devices…\nOpen LocalSend on the other device, or press Scan.");
+        empty.setText(ip == null ? "Connect to Wi-Fi or Ethernet to find devices." : "Looking for devices…\nOpen LocalSend on the other device, or press Refresh.");
         updateShared();
     }
 
@@ -436,9 +480,13 @@ public class MainActivity extends Activity implements LsService.Listener {
         box.addView(alias);
         box.addView(auto);
         box.addView(info);
+        box.addView(aboutView());
+        // Scrolls on short screens (a Wildfire S is 480 px tall).
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(box);
         new AlertDialog.Builder(this)
                 .setTitle("Settings")
-                .setView(box)
+                .setView(scroll)
                 .setPositiveButton("Save", new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d, int w) {
                         s.saveSettings(alias.getText().toString(), auto.isChecked());
@@ -446,6 +494,48 @@ public class MainActivity extends Activity implements LsService.Listener {
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    /** The "About" block at the bottom of Settings, after LocalSend's own: orb, name, version, credits. */
+    private View aboutView() {
+        float dp = getResources().getDisplayMetrics().density;
+        LinearLayout about = new LinearLayout(this);
+        about.setOrientation(LinearLayout.VERTICAL);
+        about.setGravity(Gravity.CENTER_HORIZONTAL);
+        about.setPadding(0, (int) (16 * dp), 0, 0);
+
+        View divider = new View(this);
+        divider.setBackgroundColor(0x40888888);
+        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1);
+        dividerParams.bottomMargin = (int) (16 * dp);
+        about.addView(divider, dividerParams);
+
+        about.addView(new OrbView(this), new LinearLayout.LayoutParams((int) (72 * dp), (int) (72 * dp)));
+
+        TextView name = new TextView(this);
+        name.setText(R.string.app_name);
+        name.setTextSize(20);
+        name.setTypeface(Typeface.DEFAULT_BOLD);
+        name.setGravity(Gravity.CENTER);
+        about.addView(name);
+
+        String version = "?";
+        try {
+            PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+            version = pi.versionName + " (" + pi.versionCode + ")";
+        } catch (PackageManager.NameNotFoundException ignored) {
+        }
+        TextView details = new TextView(this);
+        // The mask must be set before the text: Gingerbread only linkifies text set after it.
+        details.setAutoLinkMask(Linkify.WEB_URLS);
+        details.setText("Version: " + version
+                + "\n© 2026 mdukasa · Apache License 2.0"
+                + "\nUnofficial. Works with LocalSend, but not affiliated with the LocalSend project."
+                + "\nhttps://github.com/mdukasa/localsend-legacy");
+        details.setGravity(Gravity.CENTER);
+        details.setTextSize(13);
+        about.addView(details);
+        return about;
     }
 
     private final class DeviceAdapter extends BaseAdapter {

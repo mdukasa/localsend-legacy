@@ -50,7 +50,7 @@ Specific fixes for old Android versions:
 
 ## Features
 
-- Discovery via multicast (224.0.0.167:53317), plus an HTTP subnet **Scan** for networks that drop multicast
+- Discovery via multicast (224.0.0.167:53317). **Refresh** also scans the subnet over HTTP, for networks that drop multicast
 - Receive files, with an accept/decline prompt or auto-accept. Files go to `Download/LocalSend/`
 - Receive text messages
 - Send files from the built-in file browser, another app's picker, or any app's **Share** menu, and send text
