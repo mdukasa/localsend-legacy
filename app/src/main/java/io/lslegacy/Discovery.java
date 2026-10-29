@@ -29,6 +29,8 @@ final class Discovery {
     private MulticastSocket socket;
     private InetAddress group;
     private volatile boolean running;
+    private boolean joined;
+    private NetworkInterface joinedNif;
 
     Discovery(LsService service) {
         this.service = service;
@@ -40,7 +42,12 @@ final class Discovery {
         socket.setReuseAddress(true);
         socket.bind(new InetSocketAddress(Protocol.PORT));
         socket.setTimeToLive(4);
-        joinGroup();
+        try {
+            joinGroup();
+        } catch (IOException e) {
+            // Sending still works; the next connectivity change retries the join.
+            Log.w(TAG, "multicast join failed", e);
+        }
         running = true;
         Thread t = new Thread(new Runnable() {
             @Override public void run() {
@@ -51,8 +58,12 @@ final class Discovery {
         t.start();
     }
 
-    /** Joins on the local-network interface explicitly; some old ROMs otherwise pick rmnet or nothing. */
-    private void joinGroup() throws IOException {
+    /**
+     * Joins on the local-network interface explicitly; some old ROMs otherwise pick rmnet or nothing.
+     * Synchronized with {@link #leaveGroup()}: joining twice on one socket fails with "Address already in use".
+     */
+    private synchronized void joinGroup() throws IOException {
+        leaveGroup();
         NetworkInterface nif = null;
         String ip = Util.localIp(service);
         if (ip != null) {
@@ -67,17 +78,27 @@ final class Discovery {
         } else {
             socket.joinGroup(group);
         }
+        joined = true;
+        joinedNif = nif;
     }
 
-    /** Re-joins after a Wi-Fi change; a stale membership silently stops receiving. */
+    /** Leaves exactly the membership {@link #joinGroup()} made, which is per interface. */
+    private synchronized void leaveGroup() {
+        if (!joined) return;
+        try {
+            if (joinedNif != null) socket.leaveGroup(new InetSocketAddress(group, Protocol.PORT), joinedNif);
+            else socket.leaveGroup(group);
+        } catch (IOException ignored) {
+        }
+        joined = false;
+        joinedNif = null;
+    }
+
+    /** Re-joins after a network change; a stale membership silently stops receiving. */
     void rejoin() {
         pool.execute(new Runnable() {
             @Override public void run() {
                 try {
-                    try {
-                        socket.leaveGroup(group);
-                    } catch (IOException ignored) {
-                    }
                     joinGroup();
                 } catch (IOException e) {
                     Log.w(TAG, "rejoin failed", e);

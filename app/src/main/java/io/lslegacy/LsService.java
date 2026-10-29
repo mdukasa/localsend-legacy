@@ -20,6 +20,7 @@ import android.util.Log;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,8 +58,8 @@ public class LsService extends Service {
     private SharedPreferences prefs;
     private volatile Identity identity;
     private volatile String status = "Starting…";
-    private MiniHttpServer server;
-    private Discovery discovery;
+    private volatile MiniHttpServer server;
+    private volatile Discovery discovery;
     private Receiver receiver;
     private Sender activeSender;
     private WifiManager.MulticastLock multicastLock;
@@ -106,15 +107,33 @@ public class LsService extends Service {
             setStatus("Creating device identity…");
             identity = Identity.loadOrCreate(prefs);
             receiver = new Receiver(this);
-            server = new MiniHttpServer(receiver);
-            server.start(Protocol.PORT);
-            discovery = new Discovery(this);
-            discovery.start();
-            discovery.announce();
+            // Fields are set only once each part is running: the connectivity receiver and ready()
+            // read them from other threads.
+            server = startServer();
+            Discovery d = new Discovery(this);
+            d.start();
+            discovery = d;
+            d.announce();
             setStatus("Ready");
         } catch (Exception e) {
             Log.e(TAG, "startup failed", e);
             setStatus("Startup failed: " + e.getMessage());
+        }
+    }
+
+    /** Retries briefly: right after an update or restart the old process may still hold the port. */
+    private MiniHttpServer startServer() throws IOException, InterruptedException {
+        for (int attempt = 1; ; attempt++) {
+            MiniHttpServer s = new MiniHttpServer(receiver);
+            try {
+                s.start(Protocol.PORT);
+                return s;
+            } catch (IOException e) {
+                s.stop();
+                if (attempt == 5) throw e;
+                setStatus("Waiting for port " + Protocol.PORT + "…");
+                Thread.sleep(1000);
+            }
         }
     }
 
@@ -267,7 +286,7 @@ public class LsService extends Service {
 
     void onIncoming(final Receiver.IncomingRequest req) {
         String what = req.files.size() == 1 ? req.files.get(0).fileName : req.files.size() + " files";
-        notifyMgr().notify(NOTIF_INCOMING, Notifs.build(this, req.sender.alias + " wants to send " + what,
+        notify(NOTIF_INCOMING, Notifs.build(this, req.sender.alias + " wants to send " + what,
                 Util.formatSize(req.totalBytes) + " · tap to answer", openApp(), false, true, 0, 0));
         main.post(new Runnable() {
             @Override public void run() {
@@ -282,7 +301,7 @@ public class LsService extends Service {
 
     void onMessage(final Device from, final String text) {
         addLog("Message from " + from.alias + ": " + text);
-        notifyMgr().notify(NOTIF_INCOMING, Notifs.build(this, "Message from " + from.alias, text, openApp(), false, true, 0, 0));
+        notify(NOTIF_INCOMING, Notifs.build(this, "Message from " + from.alias, text, openApp(), false, true, 0, 0));
         main.post(new Runnable() {
             @Override public void run() {
                 if (listener != null) listener.onMessage(from, text);
@@ -301,7 +320,7 @@ public class LsService extends Service {
         if (received > 0 && now - lastProgressNotif < 1000) return;
         lastProgressNotif = now;
         int pct = s.totalBytes > 0 ? (int) (received * 100 / s.totalBytes) : 0;
-        notifyMgr().notify(NOTIF_TRANSFER, Notifs.build(this, "Receiving from " + s.sender.alias,
+        notify(NOTIF_TRANSFER, Notifs.build(this, "Receiving from " + s.sender.alias,
                 Util.formatSize(received) + " of " + Util.formatSize(s.totalBytes), openApp(), true, false, 100, pct));
     }
 
@@ -311,7 +330,7 @@ public class LsService extends Service {
         String msg = ok ? "Received " + s.files.size() + " file(s) from " + s.sender.alias + " → Download/LocalSend"
                 : "Transfer from " + s.sender.alias + " was cancelled";
         addLog(msg);
-        notifyMgr().notify(NOTIF_INCOMING, Notifs.build(this, ok ? "Transfer complete" : "Transfer cancelled", msg,
+        notify(NOTIF_INCOMING, Notifs.build(this, ok ? "Transfer complete" : "Transfer cancelled", msg,
                 openApp(), false, ok, 0, 0));
     }
 
@@ -342,6 +361,18 @@ public class LsService extends Service {
 
     private NotificationManager notifyMgr() {
         return (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+    }
+
+    /**
+     * Posts a notification, never letting a failure reach the caller: these run inside transfer handlers,
+     * and some ROMs throw here (e.g. Android 4.1 without VIBRATE for a vibrating notification).
+     */
+    private void notify(int id, android.app.Notification n) {
+        try {
+            notifyMgr().notify(id, n);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "notification " + id + " failed", e);
+        }
     }
 
     private PendingIntent openApp() {
