@@ -40,7 +40,7 @@ On Android 2.3 (Gingerbread):
 | 3.x (API 11–13) | Should work; untested |
 | 4.0 – 4.3 (API 14–18) | Supported. Tested on an HTC Wildfire S (ARMv6, CM 10.1 / 4.2.2) |
 | 4.4 (API 19) | Supported. Tested on the 4.4.2 x86 emulator: send text, receive |
-| 5.0+ | Works, but you probably want the [official app](https://localsend.org) |
+| 5.0+ (API 21+) | Works, but you probably want the [official app](https://localsend.org). Tested on the 5.0.2 x86 emulator: send file, send text, receive |
 
 Specific fixes for old Android versions:
 - Android 2.x ships its own, older BouncyCastle library. The app's copy is renamed at build time so the two can't collide.
