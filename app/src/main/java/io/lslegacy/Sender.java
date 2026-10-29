@@ -16,6 +16,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -91,6 +92,7 @@ final class Sender {
 
     private void transfer(Device d, List<Item> items, Callback cb) {
         HttpClient.Target t = d.target();
+        boolean accepted = false;
         try {
             JSONObject files = new JSONObject();
             long total = 0;
@@ -136,6 +138,7 @@ final class Sender {
                     return;
             }
 
+            accepted = true;
             JSONObject resp = new JSONObject(r.text());
             sessionId = resp.getString("sessionId");
             JSONObject tokens = resp.getJSONObject("files");
@@ -189,8 +192,17 @@ final class Sender {
                 } catch (IOException ignored) {
                 }
             }
-            cb.onDone(false, cancelled ? "Cancelled" : "Failed: " + e.getMessage());
+            cb.onDone(false, cancelled ? "Cancelled" : failure(d, e, accepted));
         }
+    }
+
+    /** Timeouts and some TLS errors carry no message, which used to show as "Failed: null". */
+    private static String failure(Device d, Exception e, boolean accepted) {
+        if (e instanceof SocketTimeoutException) {
+            return accepted ? d.alias + " stopped responding" : d.alias + " didn't accept in time";
+        }
+        String why = e.getMessage();
+        return "Failed: " + (why != null ? why : e.getClass().getSimpleName());
     }
 
     private static InputStream open(Context ctx, Item it) throws IOException {
