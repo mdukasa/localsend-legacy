@@ -27,6 +27,7 @@ import io.lslegacy.net.MiniHttpServer;
 final class Receiver implements MiniHttpServer.Handler {
     private static final String TAG = "LsReceiver";
     private static final long SESSION_IDLE_MS = 5 * 60 * 1000;
+    private static final String NO_STORAGE = "no SD card, or it's being used by a computer over USB";
 
     static final class FileEntry {
         String id;
@@ -195,6 +196,13 @@ final class Receiver implements MiniHttpServer.Handler {
             return;
         }
 
+        // Files are saved to the SD card. Without one, refuse now instead of failing after the user accepts.
+        if (!storageReady()) {
+            service.onRefused(sender, NO_STORAGE);
+            res.json(403, "{\"message\":\"No storage to save files to\"}");
+            return;
+        }
+
         IncomingRequest ask;
         synchronized (this) {
             if (session != null && System.currentTimeMillis() - session.lastActivity < SESSION_IDLE_MS) {
@@ -272,7 +280,7 @@ final class Receiver implements MiniHttpServer.Handler {
         File dest = uniqueFile(saveDir(), e.fileName);
         dest.getParentFile().mkdirs();
         MessageDigest digest = e.sha256 != null ? Util.sha256() : null;
-        OutputStream out = new BufferedOutputStream(new FileOutputStream(dest), 65536);
+        OutputStream out = null;
         long written;
         final Session fs = s;
         final long base;
@@ -280,6 +288,7 @@ final class Receiver implements MiniHttpServer.Handler {
             base = s.receivedBytes;
         }
         try {
+            out = new BufferedOutputStream(new FileOutputStream(dest), 65536);
             written = Util.copy(req.body, out, digest, new Util.CopyProgress() {
                 @Override public void onBytes(long total) {
                     fs.lastActivity = System.currentTimeMillis();
@@ -290,6 +299,7 @@ final class Receiver implements MiniHttpServer.Handler {
         } catch (IOException ex) {
             Util.closeQuietly(out);
             dest.delete();
+            fail(s, ex);
             throw ex;
         }
         if (written != e.size && e.size > 0) {
@@ -331,6 +341,21 @@ final class Receiver implements MiniHttpServer.Handler {
         Log.i(TAG, "sender cancelled session " + s.id);
         service.onTransferFinished(s, false);
         res.status(200);
+    }
+
+    /** Ends the session after a file couldn't be written or the sender dropped mid-file. */
+    private void fail(Session s, IOException ex) {
+        synchronized (this) {
+            if (session != s) return; // already finished or cancelled
+            session = null;
+        }
+        String why = !storageReady() ? NO_STORAGE : ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
+        Log.w(TAG, "receive failed", ex);
+        service.onTransferFailed(s, why);
+    }
+
+    private static boolean storageReady() {
+        return Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
     }
 
     /** Keeps sub-folders the sender sent, strips anything that would escape {@code dir}, and avoids overwriting. */

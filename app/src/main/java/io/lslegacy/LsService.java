@@ -334,6 +334,21 @@ public class LsService extends Service {
                 openApp(), false, ok, 0, 0));
     }
 
+    void onTransferFailed(Receiver.Session s, String why) {
+        releaseWake();
+        notifyMgr().cancel(NOTIF_TRANSFER);
+        String msg = "Couldn't receive from " + s.sender.alias + ": " + why;
+        addLog(msg);
+        notify(NOTIF_INCOMING, Notifs.build(this, "Transfer failed", msg, openApp(), false, true, 0, 0));
+    }
+
+    /** Files were refused before asking the user, because they couldn't be saved anyway. */
+    void onRefused(Device from, String why) {
+        String msg = "Refused files from " + from.alias + ": " + why;
+        addLog(msg);
+        notify(NOTIF_INCOMING, Notifs.build(this, "Can't receive files", msg, openApp(), false, true, 0, 0));
+    }
+
     void addLog(final String line) {
         synchronized (log) {
             log.add(0, line);
