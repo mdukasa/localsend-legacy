@@ -48,8 +48,11 @@ final class Receiver implements MiniHttpServer.Handler {
         final Map<String, FileEntry> files = new LinkedHashMap<String, FileEntry>();
         long totalBytes;
         long receivedBytes;
+        int filesDone;
         volatile long lastActivity;
         volatile boolean accepted;
+        /** Set when the user cancels on this phone; stops the upload in progress. */
+        volatile boolean cancelled;
     }
 
     /** A pending prepare-upload waiting on the user. */
@@ -97,6 +100,8 @@ final class Receiver implements MiniHttpServer.Handler {
 
     private final LsService service;
     private Session session;
+    /** The last session the user cancelled here, so the sender's next upload is told why it's refused. */
+    private String cancelledId;
     private IncomingRequest pending;
 
     Receiver(LsService service) {
@@ -266,6 +271,10 @@ final class Receiver implements MiniHttpServer.Handler {
         FileEntry e;
         synchronized (this) {
             s = session;
+            if (sessionId.equals(cancelledId)) {
+                res.json(409, "{\"message\":\"Cancelled by the receiver\"}");
+                return;
+            }
             if (s == null || !s.id.equals(sessionId)) {
                 res.json(409, "{\"message\":\"Blocked by another session\"}");
                 return;
@@ -283,22 +292,30 @@ final class Receiver implements MiniHttpServer.Handler {
         OutputStream out = null;
         long written;
         final Session fs = s;
+        final String name = e.fileName;
         final long base;
+        final int index;
         synchronized (this) {
             base = s.receivedBytes;
+            index = s.filesDone + 1;
         }
         try {
             out = new BufferedOutputStream(new FileOutputStream(dest), 65536);
             written = Util.copy(req.body, out, digest, new Util.CopyProgress() {
-                @Override public void onBytes(long total) {
+                @Override public void onBytes(long total) throws IOException {
+                    if (fs.cancelled) throw new IOException("Cancelled on this phone");
                     fs.lastActivity = System.currentTimeMillis();
-                    service.onTransferProgress(fs, base + total);
+                    service.onTransferProgress(fs, name, index, base + total);
                 }
             });
             out.close();
         } catch (IOException ex) {
             Util.closeQuietly(out);
             dest.delete();
+            if (s.cancelled) {
+                res.json(409, "{\"message\":\"Cancelled by the receiver\"}");
+                return;
+            }
             fail(s, ex);
             throw ex;
         }
@@ -316,9 +333,15 @@ final class Receiver implements MiniHttpServer.Handler {
 
         boolean finished;
         synchronized (this) {
+            if (session != s) { // cancelled while the last bytes were arriving
+                dest.delete();
+                res.json(409, "{\"message\":\"Session cancelled\"}");
+                return;
+            }
             e.done = true;
             e.saved = dest;
             s.receivedBytes += written;
+            s.filesDone++;
             finished = true;
             for (FileEntry f : s.files.values()) finished &= f.done;
             if (finished && session == s) session = null;
@@ -341,6 +364,23 @@ final class Receiver implements MiniHttpServer.Handler {
         Log.i(TAG, "sender cancelled session " + s.id);
         service.onTransferFinished(s, false);
         res.status(200);
+    }
+
+    /**
+     * The user cancelled on this phone. The upload in progress stops at its next 64 KB and the sender's
+     * connection is closed; later uploads in the session are refused because it no longer exists.
+     */
+    void cancelByUser() {
+        Session s;
+        synchronized (this) {
+            s = session;
+            if (s == null) return;
+            session = null;
+            s.cancelled = true;
+            cancelledId = s.id;
+        }
+        Log.i(TAG, "user cancelled session " + s.id);
+        service.onTransferFinished(s, false);
     }
 
     /** Ends the session after a file couldn't be written or the sender dropped mid-file. */

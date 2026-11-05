@@ -14,7 +14,9 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.net.Uri;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.util.Log;
 
 import org.json.JSONException;
@@ -43,6 +45,11 @@ public class LsService extends Service {
         void onMessage(Device from, String text);
 
         void onLog(String line);
+
+        /** A transfer started, moved on or ended; read {@link #sending()} and {@link #receiving()}. */
+        void onTransfer();
+
+        void onSendDone(boolean ok, String message);
     }
 
     private static LsService instance;
@@ -62,6 +69,9 @@ public class LsService extends Service {
     private volatile Discovery discovery;
     private Receiver receiver;
     private Sender activeSender;
+    private volatile Transfer sending;
+    private volatile Transfer receiving;
+    private long lastTransferPost;
     private WifiManager.MulticastLock multicastLock;
     private WifiManager.WifiLock wifiLock;
     private PowerManager.WakeLock wakeLock;
@@ -249,23 +259,80 @@ public class LsService extends Service {
         return o;
     }
 
+    Transfer sending() {
+        return sending;
+    }
+
+    Transfer receiving() {
+        return receiving;
+    }
+
     // ---- sending ----
 
-    Sender newSender() {
+    /** Returns false if a send is already running. */
+    boolean sendFiles(Device d, List<Uri> uris) {
+        if (sending != null) return false;
+        acquireWake();
+        newSender(d).sendFiles(d, uris, sendCallback());
+        return true;
+    }
+
+    boolean sendText(Device d, String text) {
+        if (sending != null) return false;
+        newSender(d).sendText(d, text, sendCallback());
+        return true;
+    }
+
+    private Sender newSender(Device d) {
+        sending = new Transfer(true, d.alias);
+        transferChanged(true);
         activeSender = new Sender(this);
         return activeSender;
     }
 
-    void cancelSend() {
-        if (activeSender != null) activeSender.cancel();
+    private Sender.Callback sendCallback() {
+        final Transfer t = sending;
+        return new Sender.Callback() {
+            @Override public void onFile(String name, int index, int count) {
+                t.file = name;
+                t.fileIndex = index;
+                t.fileCount = count;
+                transferChanged(true);
+            }
+
+            @Override public void onProgress(long sent, long total) {
+                t.total = total;
+                t.progress(sent);
+                transferChanged(false);
+            }
+
+            @Override public void onDone(final boolean ok, final String message) {
+                if (sending == t) sending = null;
+                releaseWake();
+                addLog(message);
+                transferChanged(true);
+                main.post(new Runnable() {
+                    @Override public void run() {
+                        if (listener != null) listener.onSendDone(ok, message);
+                    }
+                });
+            }
+        };
     }
 
-    void acquireWake() {
+    void cancel(Transfer t) {
+        if (t == null) return;
+        if (t == sending && activeSender != null) activeSender.cancel();
+        if (t == receiving && receiver != null) receiver.cancelByUser();
+    }
+
+    private void acquireWake() {
         if (!wakeLock.isHeld()) wakeLock.acquire();
     }
 
-    void releaseWake() {
-        if (wakeLock.isHeld()) wakeLock.release();
+    /** Keeps the lock while a transfer in the other direction is still running. */
+    private void releaseWake() {
+        if (sending == null && receiving == null && wakeLock.isHeld()) wakeLock.release();
     }
 
     // ---- callbacks from Discovery / Receiver (any thread) ----
@@ -312,10 +379,25 @@ public class LsService extends Service {
     void onTransferStarted(Receiver.Session s) {
         acquireWake();
         addLog("Receiving " + s.files.size() + " file(s) from " + s.sender.alias);
-        onTransferProgress(s, 0);
+        Transfer t = new Transfer(false, s.sender.alias);
+        t.total = s.totalBytes;
+        t.fileCount = s.files.size();
+        receiving = t;
+        transferChanged(true);
+        onTransferProgress(s, null, 0, 0);
     }
 
-    void onTransferProgress(Receiver.Session s, long received) {
+    void onTransferProgress(Receiver.Session s, String file, int index, long received) {
+        Transfer t = receiving;
+        if (t != null) {
+            boolean next = file != null && index != t.fileIndex;
+            if (next) {
+                t.file = file;
+                t.fileIndex = index;
+            }
+            t.progress(received);
+            transferChanged(next);
+        }
         long now = System.currentTimeMillis();
         if (received > 0 && now - lastProgressNotif < 1000) return;
         lastProgressNotif = now;
@@ -325,7 +407,7 @@ public class LsService extends Service {
     }
 
     void onTransferFinished(Receiver.Session s, boolean ok) {
-        releaseWake();
+        endReceiving();
         notifyMgr().cancel(NOTIF_TRANSFER);
         String msg = ok ? "Received " + s.files.size() + " file(s) from " + s.sender.alias + " → Download/LocalSend"
                 : "Transfer from " + s.sender.alias + " was cancelled";
@@ -335,7 +417,7 @@ public class LsService extends Service {
     }
 
     void onTransferFailed(Receiver.Session s, String why) {
-        releaseWake();
+        endReceiving();
         notifyMgr().cancel(NOTIF_TRANSFER);
         String msg = "Couldn't receive from " + s.sender.alias + ": " + why;
         addLog(msg);
@@ -347,6 +429,26 @@ public class LsService extends Service {
         String msg = "Refused files from " + from.alias + ": " + why;
         addLog(msg);
         notify(NOTIF_INCOMING, Notifs.build(this, "Can't receive files", msg, openApp(), false, true, 0, 0));
+    }
+
+    private void endReceiving() {
+        receiving = null;
+        releaseWake();
+        transferChanged(true);
+    }
+
+    /** Tells the UI about progress at most 4 times a second: each redraw costs ~10 ms on an ARMv6 phone. */
+    private void transferChanged(boolean now) {
+        synchronized (this) {
+            long t = SystemClock.elapsedRealtime();
+            if (!now && t - lastTransferPost < 250) return;
+            lastTransferPost = t;
+        }
+        main.post(new Runnable() {
+            @Override public void run() {
+                if (listener != null) listener.onTransfer();
+            }
+        });
     }
 
     void addLog(final String line) {

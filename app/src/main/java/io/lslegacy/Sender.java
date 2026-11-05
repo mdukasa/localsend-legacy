@@ -26,7 +26,8 @@ import io.lslegacy.net.HttpClient;
 /** Client side: prepare-upload then one upload per file. */
 final class Sender {
     interface Callback {
-        void onStatus(String status);
+        /** A file starts uploading; {@code index} counts from 1. */
+        void onFile(String name, int index, int count);
 
         void onProgress(long sent, long total);
 
@@ -45,6 +46,8 @@ final class Sender {
 
     private final LsService service;
     private volatile boolean cancelled;
+    /** Closes the connection on cancel: after the last bytes are written, the sender only waits for a reply. */
+    private final HttpClient.Abort abort = new HttpClient.Abort();
     private volatile String sessionId;
 
     Sender(LsService service) {
@@ -53,6 +56,7 @@ final class Sender {
 
     void cancel() {
         cancelled = true;
+        abort.abort();
     }
 
     void sendFiles(final Device d, final List<Uri> uris, final Callback cb) {
@@ -111,10 +115,9 @@ final class Sender {
             body.put("info", service.infoJson(true));
             body.put("files", files);
 
-            cb.onStatus("Waiting for " + d.alias + " to accept…");
             // The receiver holds this request open until its user accepts.
             HttpClient.Response r = HttpClient.postJson(t, service.identity(), Protocol.API + "prepare-upload",
-                    body.toString(), HttpClient.CONNECT_TIMEOUT, 180000);
+                    body.toString(), HttpClient.CONNECT_TIMEOUT, 180000, abort);
             switch (r.status) {
                 case 200:
                     break;
@@ -144,14 +147,16 @@ final class Sender {
             JSONObject tokens = resp.getJSONObject("files");
             final long fTotal = total;
             long sentBefore = 0;
+            int index = 0;
             for (final Item it : items) {
+                index++;
                 if (cancelled) throw new IOException("Cancelled");
                 String token = Util.str(tokens, it.id);
                 if (token == null) { // receiver already has this one
                     sentBefore += it.size;
                     continue;
                 }
-                cb.onStatus("Sending " + it.name);
+                cb.onFile(it.name, index, items.size());
                 final long base = sentBefore;
                 String path = Protocol.API + "upload?sessionId=" + HttpClient.enc(sessionId)
                         + "&fileId=" + HttpClient.enc(it.id) + "&token=" + HttpClient.enc(token);
@@ -168,7 +173,7 @@ final class Sender {
                                         if (cancelled) throw new IOException("Cancelled");
                                         out.write(buf, 0, n);
                                         sent += n;
-                                        if (sent - last >= 128 * 1024) {
+                                        if (sent - last >= 64 * 1024) {
                                             last = sent;
                                             cb.onProgress(base + sent, fTotal);
                                         }
@@ -178,7 +183,7 @@ final class Sender {
                                     Util.closeQuietly(in);
                                 }
                             }
-                        }, HttpClient.CONNECT_TIMEOUT, 120000);
+                        }, HttpClient.CONNECT_TIMEOUT, 120000, abort);
                 if (u.status != 200 && u.status != 204) throw new IOException("Upload failed (" + u.status + ")");
                 sentBefore += it.size;
                 cb.onProgress(sentBefore, fTotal);
@@ -192,7 +197,7 @@ final class Sender {
                 } catch (IOException ignored) {
                 }
             }
-            cb.onDone(false, cancelled ? "Cancelled" : failure(d, e, accepted));
+            cb.onDone(false, cancelled ? "Cancelled sending to " + d.alias : failure(d, e, accepted));
         }
     }
 

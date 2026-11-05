@@ -74,35 +74,68 @@ public final class HttpClient {
         return crypto;
     }
 
+    /**
+     * Lets another thread stop requests made with it, including one blocked waiting for a reply, by closing
+     * the socket. Once aborted, later requests fail at once.
+     */
+    public static final class Abort {
+        private Socket socket;
+        private boolean aborted;
+
+        public synchronized void abort() {
+            aborted = true;
+            closeQuietly(socket);
+        }
+
+        synchronized void attach(Socket s) throws IOException {
+            if (aborted) throw new IOException("Cancelled");
+            socket = s;
+        }
+    }
+
+    private static void closeQuietly(Socket s) {
+        if (s == null) return;
+        try {
+            s.close();
+        } catch (IOException ignored) {
+        }
+    }
+
     public static Response postJson(Target t, Identity id, String pathQuery, String json, int connectTimeout, int readTimeout)
             throws IOException {
+        return postJson(t, id, pathQuery, json, connectTimeout, readTimeout, null);
+    }
+
+    public static Response postJson(Target t, Identity id, String pathQuery, String json, int connectTimeout, int readTimeout,
+                                    Abort abort) throws IOException {
         final byte[] bytes = json.getBytes("UTF-8");
         return request(t, id, "POST", pathQuery, "application/json", bytes.length, new BodyWriter() {
             @Override public void write(OutputStream out) throws IOException {
                 out.write(bytes);
             }
-        }, connectTimeout, readTimeout);
+        }, connectTimeout, readTimeout, abort);
     }
 
     public static Response request(Target t, Identity id, String method, String pathQuery, String contentType,
-                                   long contentLength, BodyWriter body, int connectTimeout, int readTimeout)
+                                   long contentLength, BodyWriter body, int connectTimeout, int readTimeout, Abort abort)
             throws IOException {
         boolean chacha = t.https && preferChaCha;
         try {
-            return requestOnce(t, id, method, pathQuery, contentType, contentLength, body, connectTimeout, readTimeout, chacha);
+            return requestOnce(t, id, method, pathQuery, contentType, contentLength, body, connectTimeout, readTimeout, chacha, abort);
         } catch (TlsFatalAlertReceived e) {
             if (!chacha) throw e;
             preferChaCha = false;
-            return requestOnce(t, id, method, pathQuery, contentType, contentLength, body, connectTimeout, readTimeout, false);
+            return requestOnce(t, id, method, pathQuery, contentType, contentLength, body, connectTimeout, readTimeout, false, abort);
         }
     }
 
     private static Response requestOnce(Target t, Identity id, String method, String pathQuery, String contentType,
                                         long contentLength, BodyWriter body, int connectTimeout, int readTimeout,
-                                        boolean chachaOnly) throws IOException {
+                                        boolean chachaOnly, Abort abort) throws IOException {
         Socket s = new Socket();
         TlsClientProtocol tls = null;
         try {
+            if (abort != null) abort.attach(s);
             s.connect(new InetSocketAddress(t.ip, t.port), connectTimeout);
             s.setSoTimeout(readTimeout);
             s.setTcpNoDelay(true);
@@ -151,10 +184,7 @@ public final class HttpClient {
                 } catch (IOException ignored) {
                 }
             }
-            try {
-                s.close();
-            } catch (IOException ignored) {
-            }
+            closeQuietly(s);
         }
     }
 

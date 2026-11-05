@@ -2,7 +2,6 @@ package io.lslegacy;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.ProgressDialog;
 import android.content.ClipData;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -30,6 +29,7 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -54,7 +54,8 @@ public class MainActivity extends Activity implements LsService.Listener {
     private DeviceAdapter adapter;
     private AlertDialog incomingDialog;
     private Receiver.IncomingRequest shownRequest;
-    private ProgressDialog progress;
+    private Card receiveCard;
+    private Card sendCard;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -65,6 +66,8 @@ public class MainActivity extends Activity implements LsService.Listener {
         sharedView = (TextView) findViewById(R.id.shared);
         empty = (TextView) findViewById(R.id.empty);
         logView = (TextView) findViewById(R.id.log);
+        receiveCard = new Card(findViewById(R.id.card_receive));
+        sendCard = new Card(findViewById(R.id.card_send));
         ListView list = (ListView) findViewById(R.id.devices);
         adapter = new DeviceAdapter();
         list.setAdapter(adapter);
@@ -154,6 +157,7 @@ public class MainActivity extends Activity implements LsService.Listener {
         }
         s.setListener(this);
         onStateChanged();
+        onTransfer();
         StringBuilder sb = new StringBuilder();
         for (String line : s.log()) sb.append(line).append('\n');
         logView.setText(sb.toString().trim());
@@ -164,6 +168,7 @@ public class MainActivity extends Activity implements LsService.Listener {
     @Override protected void onPause() {
         LsService s = LsService.get();
         if (s != null) s.setListener(null);
+        status.removeCallbacks(tick);
         super.onPause();
     }
 
@@ -252,13 +257,96 @@ public class MainActivity extends Activity implements LsService.Listener {
         logView.setText(old.length() == 0 ? line : line + "\n" + old);
     }
 
+    @Override public void onTransfer() {
+        LsService s = LsService.get();
+        receiveCard.show(s != null ? s.receiving() : null);
+        sendCard.show(s != null ? s.sending() : null);
+        // Progress only arrives while bytes move; tick once a second too so the speed falls during a stall.
+        status.removeCallbacks(tick);
+        if (receiveCard.shown != null || sendCard.shown != null) status.postDelayed(tick, 1000);
+    }
+
+    private final Runnable tick = new Runnable() {
+        @Override public void run() {
+            onTransfer();
+        }
+    };
+
+    @Override public void onSendDone(boolean ok, String message) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        if (ok) {
+            shared.clear();
+            updateShared();
+        }
+    }
+
+    /** The views of one transfer card (layout/transfer_card.xml). */
+    private static final class Card {
+        final View root;
+        final TextView title, percent, file, detail;
+        final ProgressBar bar;
+        final View cancel;
+        Transfer shown;
+
+        Card(View root) {
+            this.root = root;
+            title = (TextView) root.findViewById(R.id.transfer_title);
+            percent = (TextView) root.findViewById(R.id.transfer_percent);
+            file = (TextView) root.findViewById(R.id.transfer_file);
+            detail = (TextView) root.findViewById(R.id.transfer_detail);
+            bar = (ProgressBar) root.findViewById(R.id.transfer_bar);
+            cancel = root.findViewById(R.id.transfer_cancel);
+            cancel.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    LsService s = LsService.get();
+                    if (s != null) s.cancel(shown);
+                    v.setEnabled(false);
+                }
+            });
+        }
+
+        void show(Transfer t) {
+            if (t == null) {
+                shown = null;
+                root.setVisibility(View.GONE);
+                return;
+            }
+            if (t != shown) {
+                shown = t;
+                title.setText((t.sending ? "Sending to " : "Receiving from ") + t.peer);
+                cancel.setEnabled(true);
+                root.setVisibility(View.VISIBLE);
+            }
+            if (!t.started()) {
+                percent.setText("");
+                file.setText(t.sending ? "Waiting for " + t.peer + " to accept…" : "Starting…");
+                bar.setProgress(0);
+                detail.setText(t.total > 0 ? Util.formatSize(t.total) : "");
+                return;
+            }
+            percent.setText(t.percent() + "%");
+            file.setText(t.fileCount > 1 ? t.file + "  (" + t.fileIndex + " of " + t.fileCount + ")" : t.file);
+            bar.setProgress((int) (t.total > 0 ? t.done * 1000 / t.total : 0));
+            StringBuilder sb = new StringBuilder();
+            sb.append(Util.formatSize(t.done)).append(" of ").append(Util.formatSize(t.total));
+            long speed = t.speed();
+            if (speed > 0) {
+                sb.append(" · ").append(Util.formatSize(speed)).append("/s · ")
+                        .append(Util.formatDuration(t.secondsLeft())).append(" left");
+            }
+            detail.setText(sb.toString());
+        }
+    }
+
     // ---- sending ----
 
     private void onDeviceTapped(final Device d) {
         LsService s = LsService.get();
         if (pendingText != null && s != null) {
-            startProgress(d);
-            s.newSender().sendText(d, pendingText, callback());
+            if (!s.sendText(d, pendingText)) {
+                busy();
+                return;
+            }
             pendingText = null;
             updateShared();
             return;
@@ -331,9 +419,7 @@ public class MainActivity extends Activity implements LsService.Listener {
                         String t = input.getText().toString();
                         if (t.length() == 0) return;
                         LsService s = LsService.get();
-                        if (s == null) return;
-                        startProgress(d);
-                        s.newSender().sendText(d, t, callback());
+                        if (s != null && !s.sendText(d, t)) busy();
                     }
                 })
                 .setNegativeButton("Cancel", null)
@@ -343,64 +429,11 @@ public class MainActivity extends Activity implements LsService.Listener {
     private void send(Device d, ArrayList<Uri> uris) {
         LsService s = LsService.get();
         if (s == null || !s.ready()) return;
-        startProgress(d);
-        s.acquireWake();
-        s.newSender().sendFiles(d, uris, callback());
+        if (!s.sendFiles(d, uris)) busy();
     }
 
-    private void startProgress(Device d) {
-        progress = new ProgressDialog(this);
-        progress.setTitle("Sending to " + d.alias);
-        progress.setMessage("Waiting for " + d.alias + " to accept…");
-        progress.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        progress.setMax(100);
-        progress.setCancelable(false);
-        progress.setButton(DialogInterface.BUTTON_NEGATIVE, "Cancel", new DialogInterface.OnClickListener() {
-            @Override public void onClick(DialogInterface dialog, int which) {
-                LsService s = LsService.get();
-                if (s != null) s.cancelSend();
-            }
-        });
-        progress.show();
-    }
-
-    private Sender.Callback callback() {
-        final ProgressDialog pd = progress;
-        return new Sender.Callback() {
-            @Override public void onStatus(final String st) {
-                runOnUiThread(new Runnable() {
-                    @Override public void run() {
-                        pd.setMessage(st);
-                    }
-                });
-            }
-
-            @Override public void onProgress(final long sent, final long total) {
-                runOnUiThread(new Runnable() {
-                    @Override public void run() {
-                        pd.setProgress(total > 0 ? (int) (sent * 100 / total) : 0);
-                    }
-                });
-            }
-
-            @Override public void onDone(final boolean ok, final String message) {
-                runOnUiThread(new Runnable() {
-                    @Override public void run() {
-                        LsService s = LsService.get();
-                        if (s != null) {
-                            s.releaseWake();
-                            s.addLog(message);
-                        }
-                        if (pd.isShowing()) pd.dismiss();
-                        Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
-                        if (ok) {
-                            shared.clear();
-                            updateShared();
-                        }
-                    }
-                });
-            }
-        };
+    private void busy() {
+        Toast.makeText(this, "Wait for the current send to finish, or cancel it", Toast.LENGTH_LONG).show();
     }
 
     private void handleShareIntent(Intent i) {

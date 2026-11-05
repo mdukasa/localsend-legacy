@@ -85,8 +85,16 @@ public final class Util {
         return String.format(Locale.US, "%.2f GB", bytes / (1024.0 * 1024 * 1024));
     }
 
+    /** "45 s", "3:07" or "1:02:09". */
+    public static String formatDuration(long seconds) {
+        if (seconds < 60) return seconds + " s";
+        if (seconds < 3600) return String.format(Locale.US, "%d:%02d", seconds / 60, seconds % 60);
+        return String.format(Locale.US, "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60);
+    }
+
     public interface CopyProgress {
-        void onBytes(long total);
+        /** Called every 64 KB and at the end; throwing stops the copy. */
+        void onBytes(long total) throws IOException;
     }
 
     public static long copy(InputStream in, OutputStream out, MessageDigest digest, CopyProgress p) throws IOException {
@@ -98,7 +106,7 @@ public final class Util {
             out.write(buf, 0, n);
             if (digest != null) digest.update(buf, 0, n);
             total += n;
-            if (p != null && total - lastReport >= 256 * 1024) {
+            if (p != null && total - lastReport >= 64 * 1024) {
                 lastReport = total;
                 p.onBytes(total);
             }

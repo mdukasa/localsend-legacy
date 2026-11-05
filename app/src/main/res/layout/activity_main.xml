@@ -68,6 +68,14 @@
         </LinearLayout>
     </LinearLayout>
 
+    <include
+        android:id="@+id/card_receive"
+        layout="@layout/transfer_card" />
+
+    <include
+        android:id="@+id/card_send"
+        layout="@layout/transfer_card" />
+
     <TextView
         android:id="@+id/shared"
         android:layout_width="match_parent"
