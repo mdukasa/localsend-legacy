@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ shows a splash screen with the app icon. Given a plain (non-adaptive) icon, it puts it
+         on a white tile, so supply the icon directly on the dark window background instead. -->
+    <style name="AppTheme" parent="android:Theme.Holo">
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_inset</item>
+        <item name="android:windowSplashScreenBackground">#ff000000</item>
+    </style>
+</resources>

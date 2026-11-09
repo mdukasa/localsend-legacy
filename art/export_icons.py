@@ -1,4 +1,6 @@
-"""Renders art/ic_launcher.svg with headless Chrome at 512 px and downsamples it into each density bucket."""
+"""Renders art/ic_launcher.svg with headless Chrome at 512 px and downsamples it into each density bucket.
+
+Also renders a 768 px copy for the Android 12+ splash screen (drawable-nodpi/splash_icon.png)."""
 import os, subprocess, sys, tempfile
 from PIL import Image
 
@@ -24,3 +26,13 @@ with tempfile.TemporaryDirectory() as tmp:
         os.makedirs(out, exist_ok=True)
         img.resize((px, px), Image.LANCZOS).save(os.path.join(out, "ic_launcher.png"), optimize=True)
         print(bucket, px)
+    # Splash screen icon: larger, since Android 12+ draws it at up to 192 dp.
+    big = os.path.join(tmp, "big.png")
+    subprocess.run([CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1.5",
+                    "--default-background-color=00000000", "--window-size=512,512",
+                    "--screenshot=" + big, "file:///" + page.replace("\\", "/")],
+                   check=True, capture_output=True)
+    out = os.path.join(RES, "drawable-nodpi")
+    os.makedirs(out, exist_ok=True)
+    Image.open(big).convert("RGBA").crop((0, 0, 768, 768)).save(os.path.join(out, "splash_icon.png"), optimize=True)
+    print("splash", 768)

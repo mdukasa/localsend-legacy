@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ splash icon. The system masks it to a circle two thirds of its size, so inset it by a sixth
+     on each side to keep the whole button visible. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/splash_icon"
+    android:inset="16.7%" />
