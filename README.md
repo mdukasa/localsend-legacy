@@ -24,13 +24,6 @@ so one APK runs on every CPU architecture.
 
 ## Screenshots
 
-<p align="center">
-  <img src="docs/orb.webp" width="180" alt="A green glass orb inside a slowly turning ring of glass segments">
-  <br>
-  <sub>The spinning orb on the main screen, a nod to LocalSend's receive screen. It's also a
-  standalone demo: <a href="https://github.com/mdukasa/glass-orb-demo">glass-orb-demo</a>.</sub>
-</p>
-
 On Android 4.4 (KitKat), with the Holo theme:
 
 ![Choosing files, an incoming transfer, a received message and settings on Android 4.4](docs/screenshots/features.png)
@@ -65,6 +58,10 @@ Specific fixes for old Android versions:
 - A spinning glass orb in the header, a nod to modern LocalSend's receive screen. Its original
   live-drawn version is preserved as a standalone demo in
   [Glass Orb](https://github.com/mdukasa/glass-orb-demo)
+
+<p align="center">
+  <img src="docs/orb.webp" width="180" alt="A green glass orb inside a slowly turning ring of glass segments">
+</p>
 
 ## How it works on old Android
 
