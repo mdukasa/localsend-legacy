@@ -10,8 +10,9 @@ android {
         applicationId 'io.lslegacy'
         // Plain Java/Dalvik, no native code: runs on ARMv6 (armeabi) as well as anything newer.
         minSdk 9
-        // 22 = no runtime permissions; these devices predate them anyway.
-        targetSdk 22
+        // 28 so it installs on current Android (14 refuses targets below 23, 15 below 24) while
+        // keeping full storage access: scoped storage only applies from target 29/30.
+        targetSdk 28
         versionCode 5
         versionName '0.2.3'
     }

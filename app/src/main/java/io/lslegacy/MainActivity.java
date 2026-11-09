@@ -99,7 +99,24 @@ public class MainActivity extends Activity implements LsService.Listener {
 
         alignHeaderText();
         startService(new Intent(this, LsService.class));
+        if (Build.VERSION.SDK_INT >= 23) askPermissions();
         handleShareIntent(getIntent());
+    }
+
+    /**
+     * Android 6+ grants storage access (for receiving and the file browser) at runtime, and Android 13+
+     * notifications too. Android doesn't prompt for notifications by itself for an app with this old a
+     * target, so ask for both. After the user declines twice, Android stops showing the prompt.
+     */
+    @android.annotation.TargetApi(23)
+    private void askPermissions() {
+        List<String> missing = new ArrayList<String>();
+        if (!Util.hasStoragePermission(this)) missing.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        String notif = "android.permission.POST_NOTIFICATIONS";
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(notif) != PackageManager.PERMISSION_GRANTED) {
+            missing.add(notif);
+        }
+        if (!missing.isEmpty()) requestPermissions(missing.toArray(new String[0]), 1);
     }
 
     /**

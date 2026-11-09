@@ -28,6 +28,7 @@ final class Receiver implements MiniHttpServer.Handler {
     private static final String TAG = "LsReceiver";
     private static final long SESSION_IDLE_MS = 5 * 60 * 1000;
     private static final String NO_STORAGE = "no SD card, or it's being used by a computer over USB";
+    private static final String NO_PERMISSION = "storage access isn't allowed. Allow it in the app's settings";
 
     static final class FileEntry {
         String id;
@@ -202,8 +203,8 @@ final class Receiver implements MiniHttpServer.Handler {
         }
 
         // Files are saved to the SD card. Without one, refuse now instead of failing after the user accepts.
-        if (!storageReady()) {
-            service.onRefused(sender, NO_STORAGE);
+        if (!storageReady() || !Util.hasStoragePermission(service)) {
+            service.onRefused(sender, storageReady() ? NO_PERMISSION : NO_STORAGE);
             res.json(403, "{\"message\":\"No storage to save files to\"}");
             return;
         }

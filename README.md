@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/mdukasa/localsend-legacy/releases/latest">Download the APK</a> ·
-  Android 2.3 – 4.4
+  Built for Android 2.3 – 4.4 · runs on current Android too
 </p>
 
 A LocalSend-compatible file sharing app for old Android phones and tablets that the official app can't
@@ -40,7 +40,7 @@ On Android 2.3 (Gingerbread):
 | 3.x (API 11–13) | Supported. Tested on the 3.2 ARM emulator: send file, receive |
 | 4.0 – 4.3 (API 14–18) | Supported. Tested on an HTC Wildfire S (ARMv6, CM 10.1 / 4.2.2) |
 | 4.4 (API 19) | Supported. Tested on the 4.4.2 x86 emulator: send text, receive |
-| 5.0+ (API 21+) | Works, but you probably want the [official app](https://localsend.org). Tested on the 5.0.2 x86 emulator: send file, send text, receive |
+| 5.0 – 17 (API 21–37) | Works, mainly for trying out the retro UI. For everyday use you probably want the [official app](https://localsend.org). Tested on the 5.0.2 and 17 x86 emulators: send file, send text, receive. On Android 6+ it asks for storage access, and on 13+ for notifications |
 
 Specific fixes for old Android versions:
 - Android 2.x ships its own, older BouncyCastle library. The app's copy is renamed at build time so the two can't collide.

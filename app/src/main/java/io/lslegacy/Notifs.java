@@ -31,8 +31,9 @@ final class Notifs {
     @SuppressWarnings("deprecation")
     private static Notification modern(Context ctx, String title, String text, PendingIntent pi, boolean ongoing,
                                        boolean alert, int progressMax, int progress) {
-        Notification.Builder b = new Notification.Builder(ctx)
-                .setSmallIcon(R.drawable.ic_stat)
+        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? Channels.builder(ctx, alert)
+                : new Notification.Builder(ctx);
+        b.setSmallIcon(R.drawable.ic_stat)
                 .setContentTitle(title)
                 .setContentText(text)
                 .setContentIntent(pi)
@@ -41,5 +42,25 @@ final class Notifs {
         if (alert) b.setDefaults(Notification.DEFAULT_ALL).setTicker(title);
         if (progressMax > 0 && Build.VERSION.SDK_INT >= 14) b.setProgress(progressMax, progress, false);
         return Build.VERSION.SDK_INT >= 16 ? b.build() : b.getNotification();
+    }
+
+    /** Android 8+ drops notifications without a channel. Kept in its own class so old Dalvik never loads it. */
+    @TargetApi(26)
+    private static final class Channels {
+        static final String STATUS = "status", ALERTS = "alerts";
+        private static boolean created;
+
+        static Notification.Builder builder(Context ctx, boolean alert) {
+            if (!created) {
+                android.app.NotificationManager nm =
+                        (android.app.NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+                nm.createNotificationChannel(new android.app.NotificationChannel(STATUS, "Status and progress",
+                        android.app.NotificationManager.IMPORTANCE_LOW));
+                nm.createNotificationChannel(new android.app.NotificationChannel(ALERTS, "Incoming transfers and messages",
+                        android.app.NotificationManager.IMPORTANCE_HIGH));
+                created = true;
+            }
+            return new Notification.Builder(ctx, alert ? ALERTS : STATUS);
+        }
     }
 }

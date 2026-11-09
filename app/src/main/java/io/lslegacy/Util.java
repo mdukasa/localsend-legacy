@@ -18,6 +18,12 @@ import java.util.Enumeration;
 import java.util.Locale;
 
 public final class Util {
+    /** Granted at install before Android 6; at runtime from then on. */
+    static boolean hasStoragePermission(Context ctx) {
+        return ctx.checkCallingOrSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
     private Util() {}
 
     private static final char[] HEX = "0123456789ABCDEF".toCharArray();
