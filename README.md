@@ -20,16 +20,16 @@ recompile of that codebase. It's a small native Java app that speaks the same
 receive from, current LocalSend apps on Windows, macOS, Linux, Android and iOS. It has no native code,
 so one APK runs on every CPU architecture.
 
+![LocalSend Legacy on Android 2.3, 4.1 and 4.4](docs/screenshots/versions.png)
+
+## Screenshots
+
 <p align="center">
   <img src="docs/orb.webp" width="180" alt="A green glass orb inside a slowly turning ring of glass segments">
   <br>
   <sub>The spinning orb on the main screen, a nod to LocalSend's receive screen. It's also a
   standalone demo: <a href="https://github.com/mdukasa/glass-orb-demo">glass-orb-demo</a>.</sub>
 </p>
-
-![LocalSend Legacy on Android 2.3, 4.1 and 4.4](docs/screenshots/versions.png)
-
-## Screenshots
 
 On Android 4.4 (KitKat), with the Holo theme:
 
