@@ -13,8 +13,8 @@ android {
         // 28 so it installs on current Android (14 refuses targets below 23, 15 below 24) while
         // keeping full storage access: scoped storage only applies from target 29/30.
         targetSdk 28
-        versionCode 5
-        versionName '0.2.3'
+        versionCode 6
+        versionName '0.3.0'
     }
 
     buildTypes {
