@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/mdukasa/localsend-legacy/releases/latest">Download the APK</a> ·
+  <a href="https://localsend-legacy.vercel.app">Website</a> ·
   Built for Android 2.3 – 4.4 · runs on current Android too
 </p>
 
