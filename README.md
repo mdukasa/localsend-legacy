@@ -94,3 +94,7 @@ the debug key and shrunk with R8. Without R8, BouncyCastle goes over the 64K-met
 
 Apache-2.0, the same license as LocalSend. This is an unofficial project, not affiliated with the
 LocalSend team.
+
+## AI Disclaimer
+
+Claude with Opus 5 has been used to help with developing this app.
