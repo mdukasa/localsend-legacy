@@ -162,6 +162,8 @@ public class MainActivity extends Activity implements LsService.Listener {
 
     @Override protected void onResume() {
         super.onResume();
+        // Coming back after the app was stopped from its notification: start it again.
+        if (LsService.get() == null) startService(new Intent(this, LsService.class));
         // The service may still be starting; poll briefly until it exists.
         attach();
     }
@@ -282,6 +284,10 @@ public class MainActivity extends Activity implements LsService.Listener {
             onTransfer();
         }
     };
+
+    @Override public void onQuit() {
+        finish();
+    }
 
     @Override public void onSendDone(boolean ok, String message) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();

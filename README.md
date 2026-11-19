@@ -58,7 +58,8 @@ Specific fixes for old Android versions:
   long-press to show it in its folder, see its details or remove it. **Open folder** browses
   `Download/LocalSend/`, so phones without a file manager can still reach what they received
 - Send files from the built-in file browser, another app's picker, or any app's **Share** menu, and send text
-- Runs in the background as a foreground service, with progress notifications
+- Runs in the background as a foreground service, with progress notifications. Its notification has
+  a **Stop** button (Android 4.1+), and on Android 14+ swiping it away stops the app too
 - A spinning glass orb in the header, a nod to modern LocalSend's receive screen. Its original
   live-drawn version is preserved as a standalone demo in
   [Glass Orb](https://github.com/mdukasa/glass-orb-demo)

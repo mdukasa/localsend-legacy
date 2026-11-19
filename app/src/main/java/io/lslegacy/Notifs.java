@@ -27,6 +27,39 @@ final class Notifs {
         return n;
     }
 
+    /**
+     * The persistent "running" notification. {@code stop} is both its Stop button (Android 4.1+) and what
+     * swiping it away does: Android 14+ lets the user dismiss a foreground service's notification, while
+     * older versions pin it in place.
+     */
+    @SuppressWarnings("deprecation")
+    static Notification running(Context ctx, String title, String text, PendingIntent open, PendingIntent stop) {
+        if (Build.VERSION.SDK_INT >= 16) return runningModern(ctx, title, text, open, stop);
+        Notification n = build(ctx, title, text, open, true, false, 0, 0);
+        n.deleteIntent = stop;
+        return n;
+    }
+
+    @TargetApi(16)
+    @SuppressWarnings("deprecation")
+    private static Notification runningModern(Context ctx, String title, String text, PendingIntent open,
+                                              PendingIntent stop) {
+        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? Channels.builder(ctx, false)
+                : new Notification.Builder(ctx);
+        // Android 4.x only expands the top notification, and the Stop button only shows when expanded.
+        // High priority keeps it at the top; with no sound or vibration it never pops up as a heads-up.
+        // From 8.0 the channel decides instead.
+        if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_HIGH);
+        return b.setSmallIcon(R.drawable.ic_stat)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setContentIntent(open)
+                .setDeleteIntent(stop)
+                .setOngoing(true)
+                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stop)
+                .build();
+    }
+
     @TargetApi(16)
     @SuppressWarnings("deprecation")
     private static Notification modern(Context ctx, String title, String text, PendingIntent pi, boolean ongoing,

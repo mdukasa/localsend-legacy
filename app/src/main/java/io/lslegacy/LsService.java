@@ -50,7 +50,12 @@ public class LsService extends Service {
         void onTransfer();
 
         void onSendDone(boolean ok, String message);
+
+        /** The user stopped the app from its notification. */
+        void onQuit();
     }
+
+    private static final String ACTION_STOP = "io.lslegacy.STOP";
 
     private static LsService instance;
 
@@ -101,8 +106,10 @@ public class LsService extends Service {
         wakeLock = ((PowerManager) getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "localsend");
         wakeLock.setReferenceCounted(false);
 
-        startForeground(NOTIF_RUNNING, Notifs.build(this, getString(R.string.app_name), "Ready to receive",
-                openApp(), true, false, 0, 0));
+        PendingIntent stop = PendingIntent.getService(this, 2,
+                new Intent(this, LsService.class).setAction(ACTION_STOP), PendingIntent.FLAG_UPDATE_CURRENT);
+        startForeground(NOTIF_RUNNING, Notifs.running(this, getString(R.string.app_name),
+                "Ready to receive" + (Build.VERSION.SDK_INT >= 16 ? "" : " · Menu › Quit to stop"), openApp(), stop));
         registerReceiver(netReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
 
         new Thread(new Runnable() {
@@ -148,7 +155,20 @@ public class LsService extends Service {
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+            quit();
+            return START_NOT_STICKY;
+        }
         return START_STICKY;
+    }
+
+    /** The notification's Stop button, or swiping it away: end any transfer, close the app and stop. */
+    private void quit() {
+        Log.i(TAG, "stopped from the notification");
+        cancel(sending);
+        cancel(receiving);
+        if (listener != null) listener.onQuit();
+        stopSelf();
     }
 
     @Override public void onDestroy() {
