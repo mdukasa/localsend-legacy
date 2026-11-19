@@ -194,8 +194,14 @@ public class LsService extends Service {
         return prefs.getBoolean("auto_accept", false);
     }
 
-    void saveSettings(String alias, boolean autoAccept) {
-        prefs.edit().putString("alias", alias).putBoolean("auto_accept", autoAccept).commit();
+    /** LocalSend's "Save to history" setting, on by default. */
+    boolean saveHistory() {
+        return prefs.getBoolean("save_history", true);
+    }
+
+    void saveSettings(String alias, boolean autoAccept, boolean saveHistory) {
+        prefs.edit().putString("alias", alias).putBoolean("auto_accept", autoAccept)
+                .putBoolean("save_history", saveHistory).commit();
         if (discovery != null) discovery.announce();
         stateChanged();
     }
@@ -368,7 +374,8 @@ public class LsService extends Service {
 
     void onMessage(final Device from, final String text) {
         addLog("Message from " + from.alias + ": " + text);
-        notify(NOTIF_INCOMING, Notifs.build(this, "Message from " + from.alias, text, openApp(), false, true, 0, 0));
+        if (saveHistory()) History.addMessage(this, from.alias, text);
+        notify(NOTIF_INCOMING, Notifs.build(this, "Message from " + from.alias, text, openHistory(), false, true, 0, 0));
         main.post(new Runnable() {
             @Override public void run() {
                 if (listener != null) listener.onMessage(from, text);
@@ -406,6 +413,11 @@ public class LsService extends Service {
                 Util.formatSize(received) + " of " + Util.formatSize(s.totalBytes), openApp(), true, false, 100, pct));
     }
 
+    /** One file of a session has been saved and checked. */
+    void onFileReceived(Device from, String type, java.io.File saved) {
+        if (saveHistory()) History.addFile(this, from.alias, type, saved);
+    }
+
     void onTransferFinished(Receiver.Session s, boolean ok) {
         endReceiving();
         notifyMgr().cancel(NOTIF_TRANSFER);
@@ -413,7 +425,7 @@ public class LsService extends Service {
                 : "Transfer from " + s.sender.alias + " was cancelled";
         addLog(msg);
         notify(NOTIF_INCOMING, Notifs.build(this, ok ? "Transfer complete" : "Transfer cancelled", msg,
-                openApp(), false, ok, 0, 0));
+                ok && saveHistory() ? openHistory() : openApp(), false, ok, 0, 0));
     }
 
     void onTransferFailed(Receiver.Session s, String why) {
@@ -490,6 +502,23 @@ public class LsService extends Service {
         } catch (RuntimeException e) {
             Log.w(TAG, "notification " + id + " failed", e);
         }
+    }
+
+    /** Opens the history over the main screen, so Back from it lands in the app rather than the launcher. */
+    private PendingIntent openHistory() {
+        Intent history = new Intent(this, HistoryActivity.class);
+        if (Build.VERSION.SDK_INT < 11) {
+            return PendingIntent.getActivity(this, 1, history.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    PendingIntent.FLAG_UPDATE_CURRENT);
+        }
+        Intent main = new Intent(this, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        return pendingActivities(new Intent[]{main, history});
+    }
+
+    @android.annotation.TargetApi(11)
+    private PendingIntent pendingActivities(Intent[] intents) {
+        return PendingIntent.getActivities(this, 1, intents, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     private PendingIntent openApp() {

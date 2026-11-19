@@ -54,6 +54,9 @@ Specific fixes for old Android versions:
 - Discovery via multicast (224.0.0.167:53317). **Refresh** also scans the subnet over HTTP, for networks that drop multicast
 - Receive files, with an accept/decline prompt or auto-accept. Files go to `Download/LocalSend/`
 - Receive text messages
+- **History** of the last 30 files and messages received, like LocalSend's. Tap one to open it, or
+  long-press to show it in its folder, see its details or remove it. **Open folder** browses
+  `Download/LocalSend/`, so phones without a file manager can still reach what they received
 - Send files from the built-in file browser, another app's picker, or any app's **Share** menu, and send text
 - Runs in the background as a foreground service, with progress notifications
 - A spinning glass orb in the header, a nod to modern LocalSend's receive screen. Its original

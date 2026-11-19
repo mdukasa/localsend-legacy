@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets a received APK be opened (installed) from the history on Android 8+. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <supports-screens android:smallScreens="true" android:normalScreens="true"
         android:largeScreens="true" android:anyDensity="true" />
@@ -49,6 +51,17 @@
             android:exported="false"
             android:configChanges="orientation|keyboardHidden|screenSize" />
 
+        <activity
+            android:name=".HistoryActivity"
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|screenSize" />
+
         <service android:name=".LsService" android:exported="false" />
+
+        <provider
+            android:name=".FilesProvider"
+            android:authorities="io.lslegacy.files"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

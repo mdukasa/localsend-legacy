@@ -27,9 +27,16 @@ import java.util.Set;
  * A minimal multi-select file browser. Stock Android 2.x usually has no app that answers
  * ACTION_GET_CONTENT for arbitrary files, so this is the fallback (and works everywhere).
  * Returns the chosen files as file:// URIs in {@link #EXTRA_URIS}.
+ *
+ * <p>Started with {@link #EXTRA_BROWSE} it is a plain file manager instead: tapping a file opens it.
+ * The history uses this for "Open folder" and "Show in folder".
  */
 public class FileBrowserActivity extends Activity {
     static final String EXTRA_URIS = "io.lslegacy.URIS";
+    /** Folder to browse (opening files rather than picking them). */
+    static final String EXTRA_BROWSE = "io.lslegacy.BROWSE";
+    /** Name of a file in that folder to scroll to and mark. */
+    static final String EXTRA_SELECT = "io.lslegacy.SELECT";
 
     private final List<File> entries = new ArrayList<File>();
     private final Set<String> selected = new LinkedHashSet<String>();
@@ -37,6 +44,8 @@ public class FileBrowserActivity extends Activity {
     private TextView pathView;
     private Button sendButton;
     private EntryAdapter adapter;
+    private ListView list;
+    private boolean browsing;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,7 +58,8 @@ public class FileBrowserActivity extends Activity {
         pathView.setTextSize(13);
         root.addView(pathView);
 
-        ListView list = new ListView(this);
+        browsing = getIntent().getStringExtra(EXTRA_BROWSE) != null;
+        list = new ListView(this);
         adapter = new EntryAdapter();
         list.setAdapter(adapter);
         list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -57,6 +67,8 @@ public class FileBrowserActivity extends Activity {
                 File f = entries.get(position);
                 if (f.isDirectory()) {
                     show(f);
+                } else if (browsing) {
+                    Opener.open(FileBrowserActivity.this, f, null, null);
                 } else {
                     String p = f.getAbsolutePath();
                     if (!selected.remove(p)) selected.add(p);
@@ -78,14 +90,28 @@ public class FileBrowserActivity extends Activity {
         });
         root.addView(sendButton);
         setContentView(root);
-        setTitle("Choose files");
 
+        if (browsing) {
+            setTitle("Files");
+            sendButton.setVisibility(View.GONE);
+            File dir = new File(getIntent().getStringExtra(EXTRA_BROWSE));
+            dir.mkdirs();
+            show(dir.canRead() ? dir : new File("/"));
+            mark(getIntent().getStringExtra(EXTRA_SELECT));
+            return;
+        }
+        setTitle("Choose files");
         File start = Environment.getExternalStorageDirectory();
         show(start != null && start.canRead() ? start : new File("/"));
         updateButton();
     }
 
     @Override public void onBackPressed() {
+        // Opened from the history: Back leaves sub-folders, then returns to the history.
+        if (browsing && dir.getAbsolutePath().equals(getIntent().getStringExtra(EXTRA_BROWSE))) {
+            super.onBackPressed();
+            return;
+        }
         File parent = dir.getParentFile();
         if (parent != null && parent.canRead()) show(parent);
         else super.onBackPressed();
@@ -108,6 +134,24 @@ public class FileBrowserActivity extends Activity {
             }
         }
         adapter.notifyDataSetChanged();
+    }
+
+    /** Scrolls to a file and ticks it; touch mode would hide an ordinary list selection. */
+    private void mark(String name) {
+        if (name == null) return;
+        for (int i = 0; i < entries.size(); i++) {
+            if (entries.get(i).getName().equals(name)) {
+                selected.add(entries.get(i).getAbsolutePath());
+                adapter.notifyDataSetChanged();
+                final int pos = i;
+                list.post(new Runnable() {
+                    @Override public void run() {
+                        list.setSelection(pos);
+                    }
+                });
+                return;
+            }
+        }
     }
 
     private void updateButton() {
@@ -135,7 +179,8 @@ public class FileBrowserActivity extends Activity {
             CheckBox check = (CheckBox) v.findViewById(R.id.check);
             ((TextView) v.findViewById(R.id.name)).setText(f.isDirectory() ? f.getName() + "/" : f.getName());
             ((TextView) v.findViewById(R.id.detail)).setText(f.isDirectory() ? "Folder" : Util.formatSize(f.length()));
-            check.setVisibility(f.isDirectory() ? View.GONE : View.VISIBLE);
+            boolean ticked = selected.contains(f.getAbsolutePath());
+            check.setVisibility(f.isDirectory() || (browsing && !ticked) ? View.GONE : View.VISIBLE);
             check.setChecked(selected.contains(f.getAbsolutePath()));
             return v;
         }

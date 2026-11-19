@@ -16,7 +16,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
-import android.text.ClipboardManager;
 import android.text.util.Linkify;
 import android.view.Gravity;
 import android.view.Menu;
@@ -89,6 +88,11 @@ public class MainActivity extends Activity implements LsService.Listener {
                         v.setEnabled(true);
                     }
                 });
+            }
+        });
+        findViewById(R.id.history).setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, HistoryActivity.class));
             }
         });
         findViewById(R.id.settings).setOnClickListener(new View.OnClickListener() {
@@ -255,18 +259,8 @@ public class MainActivity extends Activity implements LsService.Listener {
                 .show();
     }
 
-    @Override public void onMessage(Device from, final String text) {
-        new AlertDialog.Builder(this)
-                .setTitle("Message from " + from.alias)
-                .setMessage(text)
-                .setPositiveButton("Copy", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
-                        ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setText(text);
-                        Toast.makeText(MainActivity.this, "Copied", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .setNegativeButton("Close", null)
-                .show();
+    @Override public void onMessage(Device from, String text) {
+        Opener.showMessage(this, from.alias, text);
     }
 
     @Override public void onLog(String line) {
@@ -523,12 +517,16 @@ public class MainActivity extends Activity implements LsService.Listener {
         final CheckBox auto = new CheckBox(this);
         auto.setText("Accept incoming files automatically");
         auto.setChecked(s.autoAccept());
+        final CheckBox history = new CheckBox(this);
+        history.setText("Save to history");
+        history.setChecked(s.saveHistory());
         TextView info = new TextView(this);
         info.setText("Files are saved to " + Receiver.saveDir().getAbsolutePath()
                 + "\n\nFingerprint: " + (s.identity() != null ? s.identity().fingerprint.substring(0, 16) + "…" : "-"));
         box.addView(label);
         box.addView(alias);
         box.addView(auto);
+        box.addView(history);
         box.addView(info);
         box.addView(aboutView());
         // Scrolls on short screens (a Wildfire S is 480 px tall).
@@ -539,7 +537,7 @@ public class MainActivity extends Activity implements LsService.Listener {
                 .setView(scroll)
                 .setPositiveButton("Save", new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d, int w) {
-                        s.saveSettings(alias.getText().toString(), auto.isChecked());
+                        s.saveSettings(alias.getText().toString(), auto.isChecked(), history.isChecked());
                     }
                 })
                 .setNegativeButton("Cancel", null)

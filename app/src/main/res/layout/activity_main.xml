@@ -55,7 +55,21 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:singleLine="true"
+                    android:paddingLeft="4dp"
+                    android:paddingRight="4dp"
+                    android:textSize="15sp"
                     android:text="Refresh" />
+
+                <Button
+                    android:id="@+id/history"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:singleLine="true"
+                    android:paddingLeft="4dp"
+                    android:paddingRight="4dp"
+                    android:textSize="15sp"
+                    android:text="History" />
 
                 <Button
                     android:id="@+id/settings"
@@ -63,6 +77,9 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:singleLine="true"
+                    android:paddingLeft="4dp"
+                    android:paddingRight="4dp"
+                    android:textSize="15sp"
                     android:text="Settings" />
             </LinearLayout>
         </LinearLayout>

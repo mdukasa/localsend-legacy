@@ -347,6 +347,7 @@ final class Receiver implements MiniHttpServer.Handler {
             for (FileEntry f : s.files.values()) finished &= f.done;
             if (finished && session == s) session = null;
         }
+        service.onFileReceived(s.sender, e.fileType, dest);
         if (finished) service.onTransferFinished(s, true);
         res.status(200);
     }
