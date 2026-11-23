@@ -58,6 +58,9 @@ Specific fixes for old Android versions:
   long-press to show it in its folder, see its details or remove it. **Open folder** browses
   `Download/LocalSend/`, so phones without a file manager can still reach what they received
 - Send files from the built-in file browser, another app's picker, or any app's **Share** menu, and send text
+- **Check for updates** in Settings: downloads the newest release from GitHub, checks it against
+  GitHub's SHA-256 and opens the installer. It brings its own TLS and root certificates, so it works on
+  Android 2.3, and still connects when an old phone's clock has reset to 1980
 - Runs in the background as a foreground service, with progress notifications. Its notification has
   a **Stop** button (Android 4.1+), and on Android 14+ swiping it away stops the app too
 - A spinning glass orb in the header, a nod to modern LocalSend's receive screen. Its original

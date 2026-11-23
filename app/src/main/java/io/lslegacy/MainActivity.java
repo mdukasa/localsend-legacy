@@ -24,6 +24,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -592,6 +593,18 @@ public class MainActivity extends Activity implements LsService.Listener {
         details.setGravity(Gravity.CENTER);
         details.setTextSize(13);
         about.addView(details);
+
+        Button update = new Button(this);
+        update.setText("Check for updates");
+        update.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                Updater.checkInteractive(MainActivity.this);
+            }
+        });
+        LinearLayout.LayoutParams updateParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        updateParams.topMargin = (int) (8 * dp);
+        about.addView(update, updateParams);
         return about;
     }
 
