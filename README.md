@@ -27,11 +27,11 @@ so one APK runs on every CPU architecture.
 
 On Android 4.4 (KitKat), with the Holo theme:
 
-![Choosing files, an incoming transfer, a received message and settings on Android 4.4](docs/screenshots/features.png)
+![Choosing files, an incoming transfer, a transfer in progress and the receive history on Android 4.4](docs/screenshots/features.png)
 
 On Android 2.3 (Gingerbread):
 
-![Choosing files, an incoming transfer, the send menu and settings on Android 2.3](docs/screenshots/features-gingerbread.png)
+![Choosing files, the send menu, a transfer in progress and the receive history on Android 2.3](docs/screenshots/features-gingerbread.png)
 
 ## Compatibility
 
