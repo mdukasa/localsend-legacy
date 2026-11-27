@@ -10,6 +10,10 @@
   Built for Android 2.3 – 4.4 · runs on current Android too
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/hero.png" width="400" alt="Two Nexus 4 phones running LocalSend Legacy: one asking to accept three incoming files, one receiving them from a Windows PC">
+</p>
+
 A LocalSend-compatible file sharing app for old Android phones and tablets that the official app can't
 run on: anything from Android 2.3 to 4.4, whatever the CPU. That includes ARMv6 phones like the HTC
 Wildfire S, Galaxy Mini and Optimus One, as well as ARMv7, x86 (e.g. Atom-based Motorola and Asus
